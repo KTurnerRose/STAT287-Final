@@ -1,0 +1,205 @@
+STAT/CS 287 - FP
+NOTES
+Yoshi Bird, Ted Hadley, Erica Quallen, Kelly Turner
+
+12/8/2021:  
+
+Created functions to: 
+LOAD DATA 
+Import data to dataframe 
+
+ANALYZE FOR MISSINGNESS 
+Count missing values and append a column of the counts by row (in case we need to exclude lines from analysis for exceeding a threshold of missing values) 
+Calculate the proportion of missing values by variable and store those in a dictionary 
+Visualize a barplot of proportions of missing values by variable 
+
+CHECK FOR ERRORS 
+Generate list of unique values by variable 
+Scanned those values to see if anything obvious popped out at me 
+Separate values for each variable into three lists: validated values, invalid values, and questionable values 
+Used validated list if I had one 
+If don't have a validated list, use observations of the unique values to generate rules to check variables for possibly-invalid values: 
+    -Searched for values whose type didn’t match the expected type (e.g., an int value for a str variable) 
+    -Searched for unexpected characters (e.g., # in city) 
+Need to code up a check for duplicate values 
+
+Preliminary observations: 
+    -Makes:  Might be duplicates – saw VOLV and VOLO, which might both be intended to represent VOLVO. Will ask Erica for list of validated entries, if one exists. 
+    -Models:  A couple values were weird and contained dashes, but they are mostly inscrutable, just seemingly endless permutations of letters and numbers. Will ask Erica for list of validated entries, if one exists. 
+    -Types:  This appears to be an administrative category, don’t know what the values represent. Since there is only A and B, it’s probably safe to say that all these values are valid, though it would be interesting to know what A & B mean. If A means “truck” and is in the same row as a Prius, that might be an error. 
+    -Fuels:  Not sure what these stand for, but there aren’t a lot of unique values. Erica can probably eyeball quickly to see if the unique values are all validated. 
+    -Cities: Lots of errors here – mostly what should have been included in the second line of an address, like apartment numbers. Should be easy to clean. 
+    -States Lots of errors here, too, but very easy to clean. At least I had a validated list handy! Thanks, Internet! 
+    -Zip codes: The problem here is with zip codes that were auto-converted to float format instead of string and so they lost their leading zeroes – easy fix for tomorrow 
+    -MPGs: Need to code up a check for the reasonable upper and lower boundaries of MPG values. 
+    -EPA: There might be some duplication of values that might require some cleanup. Not sure whether different EPA classes are actually the same types of cars but described differently. 
+For tomorrow: 
+	Get validated list of potential variable values from Erica, if available 
+	Code up a check for reasonable upper and lower boundaries for MPG 
+	Import zips or add a zipcode .csv and convert it to a list to check zipcodes 
+	Sort lists to check for values that are close alphabetically and might just duplicate values with a typo somewhere in one of them 
+	Search for MCAR analytics function online – there is a mathematical/statistical test, but there may also be a module with a built-in function 
+
+12/09/2021
+Linear Regression Models
+(1) MPG Combined ~ Household Income + Household Size + Population Density + 
+	IVs at the census tract level
+	
+Multinomial Logistic Regression
+(1) Engine Type ~ Household Income + Household Size  + Commute Time
+
+Discrete Choice Models
+(1) Engine Type ~ Household Income + Household Size + Population Density + Commute Time
+	IVs at the census tract level
+
+OVERVIEW: 
+Got validated list for fuel types and for EV label 
+After speaking with Erica, Yoshi is doing a lot of work for non-Vermonters. Need to remove them from the list before doing any more analysis or clean-up. 
+Extracted only rows that had VT as DMV_State or had a city listed as a state. Can double-check the zip code post-cleanup to delete any extra rows where the city might belong to another state. 
+Created functions to: Clean zip codes  
+Yoshi used .astype() to convert the column DMV_Type into dtype = str 
+Works for str and int dtype, but not for floats  
+There are no missing values among the RMV database variables now and < 10% missing in the non-RMV variables. 
+
+STATS: 
+We are now at 340K+ rows out of 500K+, but see MAJOR ISSUES 
+
+MAJOR ISSUES:  
+There are lots of VT addresses that aren’t being represented because their zipcodes were loaded as floats. I (Yoshi) don’t understand why they won’t convert to strings when the integer ones do. These could be a LOT of additional rows. 
+
+12/11/2021
+Data Cleanup
+(1) Need to ensure all zip codes are strings to add 0 before them for typical 5-digit code
+	- note: all VT zips start with "05"
+	- changed settings when reading CSVs --> fixed
+(2) Create subsets of data for analysis
+	(a) all VT records (regardless of missingness on MPG data) - "dmv2020_vt.csv"
+	(b) VT records WITHOUT missing MPG data - "dmv2020_vt_mpgclean.csv"
+(3) Prep data for census tract merge
+	- ZipCodeArea-CensusTracts.csv contains associations between zip codes and tract names/numbers
+		-previously made in ArcGIS
+	- could not complete because of zip code errors
+
+Logistic Regression Model:predicting gas usage based on travel time and area code
+Linear Regression Model:
+    - Compare vehicle count with: household size, mortgage/rent, number of rooms, income, AVERAGE commute time 
+    - pull from statewide level and census tract level
+
+block->tract->statewide also zipcode level for data
+
+Created functions to: 
+    -Save summary statistics (mean, median, standard deviation, etc) for continuous variables 
+    -Generate table to show counts of values for variable 2 (e.g., makes or models) by values of variable 1 (zip code)  
+    -Plot histograms of value distributions for variables passed in as arguments 
+    -Plot heatmap of correlations between variable values (using 1hot-like encoding) 
+
+NEXT UP: 
+Need to trim values from some of the variables and re-plot for readability (e.g., for model, because there are so many models that the x-axis labels are unreadable – want to trim to only those models that represent at least 1000 vehicles, for example, and couldn’t get that to work today) 
+Re-generate all plots with cleaned dataset 
+Fix code to save plots after they are generated – currently, only Seaborn images are saving correctly and pyplot can create an empty file but there is no plot content 
+Help Kelly merge the datasets 
+Generate table of models or makes by census tract instead of zip code 
+Work on Cartopy mapping of various datapoints by census tract 
+
+
+12/12/2021
+Data Cleanup
+(1) Zip codes aren't actually fixed...let's try again
+	- specify dtype of column when importing --> Success!
+	- formatting doesn't hold after applying functions
+	- going back and removing switch from "nan" to -999 so dtype never changes
+	- adjusted all functions to work with "NaN" --> zip codes continue to work
+Census Data Prep
+(1) Merge census tracts into data frame off zip codes
+	- association of zip codes and census tracts in data/ZipCodeArea-CensusTracts.csv
+	- merge using left join (need to rename zip code column to "ZIP_CODE" to match other .csv)
+	- successfully merged on "ZIP_CODE" column
+		- new dataframe called dmv2020_vt_tracts
+(2) Problems with census tract/zip code merge
+	- there were overlaps and multiple census tracts per zip code and vice versa which made a merge very messy and would require a lot of additional calculations using ArcGIS
+(3) Change of plans...
+	- pulled census data at zip code level to make it much easier to merge 
+	- income, household size, population, number of vehicles per household, and mean commute time pulled at zip code level
+	- all successfully merged and exported to dmv_merge_clean.csv
+(4) Presentation
+	- Updated Data slides to outline sources and process for merging
+(5) Next Up
+	- load this data into EDA file that Yoshi has been developing (Either Yoshi or Kelly to do this)
+	- Test models developed earlier
+	- Get going on write up
+Dataframe (dmv2020) that has all vehicle makes and models by zip code
+Census to provide population and median income for each zip code BUT its organized by census tract
+SO have to add columns onto dmv2020 to store population and median income, for example
+And look up specific zip codes in the census data to fill in population/income fields 
+
+12/13/2021
+(1) Geopandas
+	- Need:
+		- Plot data for each zip code to compare across the state
+	- Downloaded zip code area shapefile from Vermont Open Geodata Portal
+	- So many problems installing and importing geopandas
+		- eventually got it to work by creating a new enviornment
+(2) Merging Files
+	- merged shapefile (with geometry) with dmv_merge data
+	- created subsets for MPG, Make, VehicleClass, etc. per ZCA
+	- aggregated by zip code to get mean, most common, etc.
+(3) Visualizations
+	- successfully plotted most common make by zip code
+	- succesffully plotted average fuel efficiency (mpg) by zip code
+	- saved in new folder "figures"
+Trying different methods of culling dataframes to only include objects with fields of specific variable occurring > threshold frequency, to simplify/clean graphs in EDA file
+Ex:
+df.groupby(‘DMV_Zip’).filter(lambda x: len(x) >= 100)
+Ex:
+counts = dmv2020_raw["DMV_Zip"].value_counts(normalize=True)
+dmv2020_fewer_zips = dmv2020_raw.loc[dmv2020_raw["DMV_Zip"].isin(counts[counts > 50].index), :]
+Updated cull_the_herd function:
+    #making copy of dataframe to edit
+    data_copy = data.copy()
+    #get counts of unique fields in the var column
+    value_counts = data_copy[var].value_counts() # Specific column 
+    #make array of fields that occur less than threshold (100) number of times in var column
+    to_remove = value_counts[value_counts <= thresh].index
+    #in the var column, remove these fields
+data_copy[var].replace(to_remove, pd.NA, inplace=True)
+return data_copy
+
+Researched Cartopy and attempted to visualize state of Vermont using shapefile downloaded from census.gov - no luck – could not get map to visualize 
+Read through online documentation – could not understand it 
+Tried copy/pasting sample code and adapting – could not adapt it because I (Yoshi) could not understand the format of the shapefile 
+Tried reading documentation of shapefile – not helpful, could not understand it 
+Attempted to use Geopandas and GeoJSON file instead to display a map of Vermont by zip code 
+Geopandas package would not successfully download 
+Handed Cartopy and map visualization work off to Erica and Ted. Yoshi to work on report and Gantt chart instead. 
+Wrote Data section and revised Abstract, Introduction for final report. Used placeholder images while we are still generating final versions of our visualizations.  
+Note to self: We need to re-generate all the images with the cleaned dataset, and we also need to fix the label issues on plots that are too large for the figure object. 
+
+12/14/2021
+Multinomial Logistic Regression
+	- Build a classifier?
+	- This may be the best way to determine if there is predictive power in the data given the exogenous variables
+
+Analyzed proportions of values in data removed due to missingness and compared to proportions of values in all data – if a value was more than twice frequent in one subset than another and at least one of the proportions was greater than 5%, kept record of it. For the most part, the values identified were models and not as important to our analysis, but expunging records with missing values did remove quite a few rows representing diesel fuel type. 
+Drafted material for Results section of final report. Inserted visualizations into appropriate sections. 
+Updated Gantt chart. 
+Drafted Team Reflection for team review. 
+Ran statistics to determine most frequent make/model and make/engine type combinations, as well as fuel type. 
+Checked the MPG combined data – Erica and Yoshi noted a very high value for max MPG (124), so Yoshi wrote some code to test EV designation for all vehicles over 80 mpg, and they were all battery electric 
+
+NEXT STEPS: 
+Create heatmap of correlation between median income and electric vehicle status 
+Identify Vermont rankings for vehicles that are common in US (e.g., Ford F-150). 
+Script presentation on “The Data” and “Data Cleaning" 
+
+12/15/2021
+Multinomial Logistic Regression
+	- did not use a classifier
+		- was not accurate at all and was difficult to build when certain target classes had so few results
+	- used statsmodels MNLogit to build 2 multinomial models
+	- outputs generate logit models for each possible target class
+Visualizations
+	- finalized vizualisations (scatterplots, histograms, etc.) for presentation
+Presentation
+	- finished building presentation
+	- practiced as a team
+	- successfully hit the 4-minute mark
